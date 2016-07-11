@@ -344,6 +344,10 @@
 			width: 1px;
 		}
 
+	.img-circle {
+    	border-radius: 50%;
+		}
+
 /* Header */
 
 	@-moz-keyframes header {
@@ -1033,6 +1037,8 @@
 			background-size: 412.5px auto;
 			width: 1237.5px;
 		}
+
+		
 
 	/* Header */
 
