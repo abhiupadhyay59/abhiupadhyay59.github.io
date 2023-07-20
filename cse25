@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>Time Table</title>
+    </head>
+    <style>
+        td{
+            text-align: center;
+        }
+        table, th, td{
+            font-size: auto;
+            color: aliceblue;
+            border: 1px solid white;
+            border-collapse: collapse;
+        }
+    </style>
+    <body style="text-align: center; background-color: black;">
+        <center><h1 style="color: aliceblue;"><b>TIME TABLE OF CSE25</b></h1></center>
+        <center><table>
+            <tr>
+                <th><b>Day/Period</b></th>
+                <th><b>Room1</b></th>
+                <th>8-9</th>
+                <th>9-10</th>
+                <th>10-11</th>
+                <th>Room2</th>
+                <th>11-12</th>
+                <th>Room3</th>
+                <th>12-1</th>
+                <th>1-2</th>
+                <th>Room4</th>
+                <th>3-4</th>
+                <th>Room5</th>
+                <th>4-5</th>
+                <th>Room6</th>
+                <th>5-6</th>
+            </tr>
+            <tr>
+                <th>Monday</th>
+                <td colspan="4"></td>
+                <td>B-302</td>
+                <td>AI</td>
+                <td colspan="9"></td>
+            </tr>
+            <tr>
+                <th>Tuesday</th>
+                <td>B-404</td>
+                <td colspan="1"></td>
+                <td>HPC</td>
+                <td>SE</td>
+                <td>B-403</td>
+                <td>BD</td>
+                <td colspan="3"></td>
+                <td>A-DL-106</td>
+                <td>DAA</td>
+                <td>A-DL-106</td>
+                <td colspan="3">DAA(L)</td>
+            </tr>
+            <tr>
+                <th>Wednesday</th>
+                <td>A-DL-108</td>
+                <td>DAA</td>
+                <td colspan="2">CN(L)</td>
+                <td colspan="7"></td>
+                <td>B-302</td>
+                <td>AI</td>
+                <td>B-403</td>
+                <td>BD</td>
+            </tr>
+            <tr>
+                <th>Thursday</th>
+                <td>A-LH-103</td>
+                <td colspan="1"></td>
+                <td>HPC</td>
+                <td>SE</td>
+                <td colspan="2"></td>
+                <td>B-302</td>
+                <td>AI</td>
+                <td colspan="1"></td>
+                <td>A-LH-103</td>
+                <td>DAA</td>
+                <td>A-LH-103</td>
+                <td>CN</td>
+                <td colspan="2"></td>
+            </tr>
+            <tr>
+                <th>Friday</th>
+                <td>B-405</td>
+                <td>CN</td>
+                <td>SE</td>
+                <td>HPC</td>
+                <td colspan="5"></td>
+                <td>B-403</td>
+                <td>BD</td>
+                <td colspan="4"></td>
+            </tr>
+            <tr>
+                <th>Saturday</th>
+                <td colspan="9"></td>
+                <td>B-306</td>
+                <td>HPC</td>
+                <td>B-306</td>
+                <td>SE</td>
+                <td>B-306</td>
+                <td>CN</td>
+            </tr>
+        </table></center>
+    </body>
+</html>
