@@ -5,40 +5,42 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Multiplayer Ludo Engine</title>
     <style>
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; text-align: center; background: #f4f4f9; color: #333; margin: 0; padding: 10px; }
-        #game-board { margin: 20px auto; border: 4px solid #333; background: white; box-shadow: 0px 4px 15px rgba(0,0,0,0.2); border-radius: 10px; cursor: pointer; }
-        .lobby-container { margin-top: 100px; }
-        input, button { padding: 12px; margin: 5px; font-size: 16px; border-radius: 5px; border: 1px solid #ccc; }
-        button { background-color: #28a745; color: white; border: none; cursor: pointer; font-weight: bold; }
-        button:hover { background-color: #218838; }
-        button:disabled { background-color: #6c757d; cursor: not-allowed; }
-        .room-code-box { font-size: 24px; font-weight: bold; color: #007bff; letter-spacing: 2px; }
-        .controls { display: flex; justify-content: center; align-items: center; gap: 20px; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; text-align: center; background: #eef2f5; color: #2c3e50; margin: 0; padding: 20px; }
+        .header-panel { background: white; padding: 15px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); max-width: 650px; margin: 0 auto 20px auto; }
+        #game-board { border: 4px solid #34495e; background: white; box-shadow: 0px 10px 30px rgba(0,0,0,0.15); border-radius: 8px; cursor: pointer; }
+        .lobby-container { margin-top: 100px; background: white; padding: 40px; border-radius: 12px; display: inline-block; box-shadow: 0 10px 25px rgba(0,0,0,0.1); }
+        input, button { padding: 12px 20px; margin: 5px; font-size: 16px; border-radius: 6px; border: 1px solid #cbd5e1; outline: none; }
+        button { background-color: #3b82f6; color: white; border: none; cursor: pointer; font-weight: bold; transition: 0.2s; }
+        button:hover { background-color: #2563eb; }
+        button:disabled { background-color: #94a3b8; cursor: not-allowed; }
+        .room-code-box { font-size: 26px; font-weight: bold; color: #3b82f6; letter-spacing: 3px; }
+        .controls { display: flex; justify-content: center; align-items: center; gap: 20px; margin-top: 20px; }
+        .dice-box { font-size: 32px; font-weight: bold; background: white; border: 2px solid #34495e; border-radius: 10px; width: 50px; height: 50px; display: flex; align-items: center; justify-content: center; }
     </style>
 </head>
 <body>
 
-    <!-- LOBBY SCREEN -->
     <div id="lobby" class="lobby-container">
         <h1>🎲 Multiplayer Ludo</h1>
         <button id="create-btn">Create a New Room</button>
-        <br><br><p>— OR —</p>
+        <br><br><p style="color: #64748b; font-weight: bold;">— OR —</p>
         <input type="text" id="room-input" placeholder="Enter 6-Digit Code" maxlength="6">
         <button id="join-btn">Join Room</button>
     </div>
 
-    <!-- GAME SCREEN -->
     <div id="game-container" style="display: none;">
-        <h2>Room: <span id="room-display" class="room-code-box"></span> | You are: <span id="my-player-id"></span></h2>
-        <h3 style="color: #d9534f;">Turn: <span id="turn-display">Waiting...</span></h3>
+        <div class="header-panel">
+            <h2>Room: <span id="room-display" class="room-code-box"></span> | You are: <span id="my-player-id"></span></h2>
+            <h3 style="margin-bottom: 0;">Current Turn: <span id="turn-display">Waiting...</span></h3>
+            <p id="status-message" style="color: #ef4444; font-weight: bold; height: 20px; margin-top: 5px;"></p>
+        </div>
         
         <canvas id="game-board" width="600" height="600"></canvas>
         
         <div class="controls">
-            <button id="roll-dice-btn" disabled>Roll Dice</button>
-            <h2>Dice: <span id="dice-result">-</span></h2>
+            <button id="roll-dice-btn" disabled>🎲 Roll Dice</button>
+            <div id="dice-result" class="dice-box">-</div>
         </div>
-        <p id="status-message" style="color: red; font-weight: bold;"></p>
     </div>
 
     <script type="module">
@@ -47,47 +49,55 @@
 
         // ⚠️ PASTE YOUR FIREBASE CONFIG HERE
         const firebaseConfig = {
-            apiKey: "AIzaSyDdU1M0GbC0plSoVQuGOSkoZ8D3dSH7cFM",
-            authDomain: "my-ludo-0a2b.firebaseapp.com",
-            databaseURL: "https://my-ludo-0a2b-default-rtdb.asia-southeast1.firebasedatabase.app",
-            projectId: "my-ludo-0a2b",
-            storageBucket: "my-ludo-0a2b.firebasestorage.app",
-            messagingSenderId: "1098466141875",
-            appId: "1:1098466141875:web:c13800e0344fd11f2f32c6",
-            measurementId: "G-X81N6PNK92"
+            apiKey: "YOUR_API_KEY",
+            authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
+            databaseURL: "https://YOUR_PROJECT_ID-default-rtdb.firebaseio.com",
+            projectId: "YOUR_PROJECT_ID",
+            storageBucket: "YOUR_PROJECT_ID.appspot.com",
+            messagingSenderId: "YOUR_SENDER_ID",
+            appId: "YOUR_APP_ID"
         };
 
         const app = initializeApp(firebaseConfig);
         const db = getDatabase(app);
 
-        // Game State & Constants
+        // --- GAME CONSTANTS & MATH ---
         let currentRoom = null;
         let myPlayerId = null;
         let localGameState = null;
         
         const canvas = document.getElementById('game-board');
         const ctx = canvas.getContext('2d');
-        const TILE_SIZE = 40; // 15x15 grid = 600px
+        const TILE = 40; 
         
-        // Map Player IDs to Colors
-        const playerColors = { 'Player 1': 'red', 'Player 2': 'green', 'Player 3': 'yellow', 'Player 4': 'blue' };
-
-        // Simplified Track Path (Outer ring of the board for logic demonstration)
-        const trackPath = [];
-        for(let i=0; i<15; i++) trackPath.push({x: i, y: 0}); // Top edge
-        for(let i=1; i<15; i++) trackPath.push({x: 14, y: i}); // Right edge
-        for(let i=13; i>=0; i--) trackPath.push({x: i, y: 14}); // Bottom edge
-        for(let i=13; i>0; i--) trackPath.push({x: 0, y: i}); // Left edge
-
-        // Base positions for tokens when they are at "-1" (Not on board yet)
-        const basePositions = {
-            'Player 1': [{x: 2, y: 2}, {x: 3, y: 2}, {x: 2, y: 3}, {x: 3, y: 3}],
-            'Player 2': [{x: 11, y: 2}, {x: 12, y: 2}, {x: 11, y: 3}, {x: 12, y: 3}],
-            'Player 3': [{x: 11, y: 11}, {x: 12, y: 11}, {x: 11, y: 12}, {x: 12, y: 12}],
-            'Player 4': [{x: 2, y: 11}, {x: 3, y: 11}, {x: 2, y: 12}, {x: 3, y: 12}],
+        // Player Config (Positions and Colors)
+        const P_CFG = {
+            'Player 1': { color: '#ff4d4d', dark: '#cc0000', start: 0,  base: [{x:2,y:2},{x:3,y:2},{x:2,y:3},{x:3,y:3}] }, // Red (Top Left)
+            'Player 2': { color: '#ffdf00', dark: '#b39c00', start: 26, base: [{x:11,y:11},{x:12,y:11},{x:11,y:12},{x:12,y:12}] }, // Yellow (Bottom Right)
+            'Player 3': { color: '#33cc33', dark: '#1f7a1f', start: 13, base: [{x:11,y:2},{x:12,y:2},{x:11,y:3},{x:12,y:3}] }, // Green (Top Right)
+            'Player 4': { color: '#3385ff', dark: '#0047b3', start: 39, base: [{x:2,y:11},{x:3,y:11},{x:2,y:12},{x:3,y:12}] }  // Blue (Bottom Left)
         };
 
-        // --- ROOM LOGIC ---
+        // 52-Step Global Path Mapping (Starts top-left red moving right)
+        const pathCoords = [
+            {x:1,y:6},{x:2,y:6},{x:3,y:6},{x:4,y:6},{x:5,y:6}, {x:6,y:5},{x:6,y:4},{x:6,y:3},{x:6,y:2},{x:6,y:1},{x:6,y:0},{x:7,y:0},{x:8,y:0},
+            {x:8,y:1},{x:8,y:2},{x:8,y:3},{x:8,y:4},{x:8,y:5}, {x:9,y:6},{x:10,y:6},{x:11,y:6},{x:12,y:6},{x:13,y:6},{x:14,y:6},{x:14,y:7},{x:14,y:8},
+            {x:13,y:8},{x:12,y:8},{x:11,y:8},{x:10,y:8},{x:9,y:8}, {x:8,y:9},{x:8,y:10},{x:8,y:11},{x:8,y:12},{x:8,y:13},{x:8,y:14},{x:7,y:14},{x:6,y:14},
+            {x:6,y:13},{x:6,y:12},{x:6,y:11},{x:6,y:10},{x:6,y:9}, {x:5,y:8},{x:4,y:8},{x:3,y:8},{x:2,y:8},{x:1,y:8},{x:0,y:8},{x:0,y:7},{x:0,y:6}
+        ];
+
+        // Safe Squares on Global Path
+        const safeSquares = [0, 8, 13, 21, 26, 34, 39, 47];
+
+        // 5-Step Home Paths
+        const homePaths = {
+            'Player 1': [{x:1,y:7},{x:2,y:7},{x:3,y:7},{x:4,y:7},{x:5,y:7}],
+            'Player 2': [{x:13,y:7},{x:12,y:7},{x:11,y:7},{x:10,y:7},{x:9,y:7}],
+            'Player 3': [{x:7,y:1},{x:7,y:2},{x:7,y:3},{x:7,y:4},{x:7,y:5}],
+            'Player 4': [{x:7,y:13},{x:7,y:12},{x:7,y:11},{x:7,y:10},{x:7,y:9}]
+        };
+
+        // --- NETWORK SYNC ---
         document.getElementById('create-btn').addEventListener('click', async () => {
             const roomCode = Math.random().toString(36).substring(2, 8).toUpperCase();
             myPlayerId = 'Player 1';
@@ -96,11 +106,9 @@
             await set(ref(db, `rooms/${roomCode}`), {
                 players: { 'Player 1': true },
                 gameState: {
-                    turn: 'Player 1',
-                    diceRoll: null,
-                    hasRolled: false,
+                    turn: 'Player 1', diceRoll: null, hasRolled: false,
                     positions: {
-                        'Player 1': [-1, -1, -1, -1], // -1 means in base
+                        'Player 1': [-1, -1, -1, -1], // -1 = Base. 0-50 = Track. 51-55 = Home Stretch. 56 = Home.
                         'Player 2': [-1, -1, -1, -1],
                         'Player 3': [-1, -1, -1, -1],
                         'Player 4': [-1, -1, -1, -1]
@@ -123,9 +131,7 @@
                 currentRoom = roomCode;
                 await update(ref(db, `rooms/${roomCode}/players`), { [myPlayerId]: true });
                 enterGame(roomCode);
-            } else {
-                alert("Room not found!");
-            }
+            } else { alert("Room not found!"); }
         });
 
         function enterGame(roomCode) {
@@ -133,11 +139,10 @@
             document.getElementById('game-container').style.display = 'block';
             document.getElementById('room-display').innerText = roomCode;
             document.getElementById('my-player-id').innerText = myPlayerId;
-            document.getElementById('my-player-id').style.color = playerColors[myPlayerId];
+            document.getElementById('my-player-id').style.color = P_CFG[myPlayerId].color;
             listenToRoom(roomCode);
         }
 
-        // --- NETWORK SYNC ---
         function listenToRoom(roomCode) {
             onValue(ref(db, `rooms/${roomCode}`), (snapshot) => {
                 const data = snapshot.val();
@@ -145,129 +150,553 @@
                 localGameState = data;
 
                 document.getElementById('turn-display').innerText = data.gameState.turn;
-                document.getElementById('turn-display').style.color = playerColors[data.gameState.turn];
+                document.getElementById('turn-display').style.color = P_CFG[data.gameState.turn].color;
                 document.getElementById('dice-result').innerText = data.gameState.diceRoll || '-';
 
-                // Roll logic: Can only roll if it's your turn AND you haven't rolled yet
                 const isMyTurn = (data.gameState.turn === myPlayerId);
                 document.getElementById('roll-dice-btn').disabled = !(isMyTurn && !data.gameState.hasRolled);
 
                 if(isMyTurn && data.gameState.hasRolled) {
-                    document.getElementById('status-message').innerText = "Click one of your tokens to move it.";
+                    document.getElementById('status-message').innerText = "Select a token to move.";
+                    document.getElementById('status-message').style.color = "#10b981";
                 } else {
                     document.getElementById('status-message').innerText = "";
                 }
 
-                drawBoard(data.gameState.positions);
+                drawBoard(data.gameState.positions, Object.keys(data.players));
             });
         }
 
-        // --- DICE LOGIC ---
+        // --- GAME LOGIC ---
         document.getElementById('roll-dice-btn').addEventListener('click', async () => {
             const roll = Math.floor(Math.random() * 6) + 1;
-            await update(ref(db, `rooms/${currentRoom}/gameState`), {
-                diceRoll: roll,
-                hasRolled: true
-            });
+            const myPositions = localGameState.gameState.positions[myPlayerId];
+            
+            // Check if user has ANY valid moves
+            let hasValidMove = false;
+            for (let i = 0; i < 4; i++) {
+                if (myPositions[i] === -1 && roll === 6) hasValidMove = true;
+                if (myPositions[i] !== -1 && myPositions[i] + roll <= 56) hasValidMove = true;
+            }
+
+            if (!hasValidMove) {
+                document.getElementById('status-message').innerText = `Rolled a ${roll}. No moves! Skipping...`;
+                document.getElementById('status-message').style.color = "#ef4444";
+                
+                const playersList = Object.keys(localGameState.players);
+                const nextPlayerIndex = (playersList.indexOf(myPlayerId) + 1) % playersList.length;
+                
+                setTimeout(async () => {
+                    await update(ref(db, `rooms/${currentRoom}/gameState`), {
+                        diceRoll: roll, hasRolled: false, turn: playersList[nextPlayerIndex]
+                    });
+                }, 1500);
+            } else {
+                await update(ref(db, `rooms/${currentRoom}/gameState`), { diceRoll: roll, hasRolled: true });
+            }
         });
 
-        // --- TOKEN MOVEMENT (CANVAS CLICK) ---
         canvas.addEventListener('click', async (e) => {
             if (!localGameState || localGameState.gameState.turn !== myPlayerId || !localGameState.gameState.hasRolled) return;
 
             const rect = canvas.getBoundingClientRect();
-            const clickX = e.clientX - rect.left;
-            const clickY = e.clientY - rect.top;
-            const gridX = Math.floor(clickX / TILE_SIZE);
-            const gridY = Math.floor(clickY / TILE_SIZE);
+            const gridX = Math.floor((e.clientX - rect.left) / TILE);
+            const gridY = Math.floor((e.clientY - rect.top) / TILE);
 
-            const myPositions = localGameState.gameState.positions[myPlayerId];
+            let positionsObj = JSON.parse(JSON.stringify(localGameState.gameState.positions)); // Deep copy
+            const myPositions = positionsObj[myPlayerId];
             const diceRoll = localGameState.gameState.diceRoll;
             let tokenMoved = false;
+            let gotBonusTurn = (diceRoll === 6); // Rolling 6 = Bonus Turn
 
             for (let i = 0; i < 4; i++) {
-                let tokenPos = myPositions[i];
-                let visualX, visualY;
+                let pos = myPositions[i];
+                let coords = getVisualCoords(myPlayerId, pos);
 
-                // Determine where the token currently is on the screen
-                if (tokenPos === -1) {
-                    visualX = basePositions[myPlayerId][i].x;
-                    visualY = basePositions[myPlayerId][i].y;
-                } else {
-                    visualX = trackPath[tokenPos].x;
-                    visualY = trackPath[tokenPos].y;
-                }
+                if (gridX === coords.x && gridY === coords.y) {
+                    if (pos === -1 && diceRoll === 6) {
+                        myPositions[i] = 0; // Exit base
+                        tokenMoved = true;
+                    } else if (pos !== -1 && pos + diceRoll <= 56) {
+                        myPositions[i] += diceRoll; // Move forward
+                        tokenMoved = true;
 
-                // Check if the user clicked on this specific token
-                if (gridX === visualX && gridY === visualY) {
-                    if (tokenPos === -1 && diceRoll === 6) {
-                        myPositions[i] = 0; // Move out of base
-                        tokenMoved = true;
-                    } else if (tokenPos !== -1) {
-                        myPositions[i] = (tokenPos + diceRoll) % trackPath.length; // Move along track
-                        tokenMoved = true;
+                        // Check Win
+                        if (myPositions[i] === 56) gotBonusTurn = true; 
+
+                        // Check Capture (If on main track)
+                        if (myPositions[i] < 51) {
+                            let myGlobalIdx = (P_CFG[myPlayerId].start + myPositions[i]) % 52;
+                            if (!safeSquares.includes(myGlobalIdx)) {
+                                Object.keys(positionsObj).forEach(oppId => {
+                                    if (oppId !== myPlayerId) {
+                                        positionsObj[oppId].forEach((oppPos, oppIdx) => {
+                                            if (oppPos > -1 && oppPos < 51) {
+                                                let oppGlobalIdx = (P_CFG[oppId].start + oppPos) % 52;
+                                                if (oppGlobalIdx === myGlobalIdx) {
+                                                    positionsObj[oppId][oppIdx] = -1; // KILL!
+                                                    gotBonusTurn = true;
+                                                }
+                                            }
+                                        });
+                                    }
+                                });
+                            }
+                        }
                     }
-                    break;
+                    break; // Action complete
                 }
             }
 
             if (tokenMoved) {
-                // Pass turn to next player
                 const playersList = Object.keys(localGameState.players);
-                const nextPlayerIndex = (playersList.indexOf(myPlayerId) + 1) % playersList.length;
+                let nextTurn = myPlayerId;
+                if (!gotBonusTurn) {
+                    nextTurn = playersList[(playersList.indexOf(myPlayerId) + 1) % playersList.length];
+                }
                 
                 await update(ref(db, `rooms/${currentRoom}/gameState`), {
-                    positions: { ...localGameState.gameState.positions, [myPlayerId]: myPositions },
-                    turn: playersList[nextPlayerIndex],
-                    hasRolled: false,
-                    diceRoll: null
+                    positions: positionsObj, turn: nextTurn, hasRolled: false, diceRoll: null
                 });
-            } else {
-                alert("Invalid move! You need a 6 to leave the base, or click a valid token.");
             }
         });
 
+        // Helper to map relative progress (0-56) to physical X/Y grid coordinates
+        function getVisualCoords(player, relativePos, indexInBase = 0) {
+            if (relativePos === -1) return P_CFG[player].base[indexInBase];
+            if (relativePos < 51) {
+                let globalIdx = (P_CFG[player].start + relativePos) % 52;
+                return pathCoords[globalIdx];
+            }
+            if (relativePos >= 51 && relativePos <= 55) return homePaths[player][relativePos - 51];
+            return { x: 7, y: 7 }; // 56 = Home Center
+        }
+
         // --- DRAWING LOGIC ---
-        function drawBoard(positions) {
+        function drawBoard(positions, activePlayers) {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-            // 1. Draw Bases
-            ctx.fillStyle = "#ffcccc"; ctx.fillRect(0, 0, 6 * TILE_SIZE, 6 * TILE_SIZE); // Red
-            ctx.fillStyle = "#ccffcc"; ctx.fillRect(9 * TILE_SIZE, 0, 6 * TILE_SIZE, 6 * TILE_SIZE); // Green
-            ctx.fillStyle = "#ffffcc"; ctx.fillRect(9 * TILE_SIZE, 9 * TILE_SIZE, 6 * TILE_SIZE, 6 * TILE_SIZE); // Yellow
-            ctx.fillStyle = "#ccccff"; ctx.fillRect(0, 9 * TILE_SIZE, 6 * TILE_SIZE, 6 * TILE_SIZE); // Blue
+            // 1. Draw 4 Bases
+            const drawBase = (x, y, color) => {
+                ctx.fillStyle = color; ctx.fillRect(x*TILE, y*TILE, 6*TILE, 6*TILE);
+                ctx.fillStyle = "white"; ctx.fillRect((x+1)*TILE, (y+1)*TILE, 4*TILE, 4*TILE);
+            };
+            drawBase(0, 0, P_CFG['Player 1'].color); drawBase(9, 0, P_CFG['Player 3'].color);
+            drawBase(0, 9, P_CFG['Player 4'].color); drawBase(9, 9, P_CFG['Player 2'].color);
 
-            // 2. Draw Track Grid
-            ctx.strokeStyle = "#ddd";
-            for(let i = 0; i <= 15; i++) {
-                ctx.beginPath(); ctx.moveTo(i * TILE_SIZE, 0); ctx.lineTo(i * TILE_SIZE, 600); ctx.stroke();
-                ctx.beginPath(); ctx.moveTo(0, i * TILE_SIZE); ctx.lineTo(600, i * TILE_SIZE); ctx.stroke();
+            // 2. Draw Grid & Path Backgrounds
+            ctx.strokeStyle = "#cbd5e1";
+            for(let i=0; i<=15; i++) {
+                ctx.beginPath(); ctx.moveTo(i*TILE, 0); ctx.lineTo(i*TILE, 600); ctx.stroke();
+                ctx.beginPath(); ctx.moveTo(0, i*TILE); ctx.lineTo(600, i*TILE); ctx.stroke();
             }
 
-            // Highlight the playable track path
-            ctx.fillStyle = "rgba(0, 0, 0, 0.05)";
-            trackPath.forEach(tile => {
-                ctx.fillRect(tile.x * TILE_SIZE, tile.y * TILE_SIZE, TILE_SIZE, TILE_SIZE);
+            // Fill Safe Squares & Starts
+            safeSquares.forEach(idx => {
+                ctx.fillStyle = "#e2e8f0";
+                ctx.fillRect(pathCoords[idx].x*TILE, pathCoords[idx].y*TILE, TILE, TILE);
+                // Draw Star
+                ctx.fillStyle = "#94a3b8"; ctx.font = "20px Arial"; ctx.textAlign = "center";
+                ctx.fillText("★", pathCoords[idx].x*TILE + TILE/2, pathCoords[idx].y*TILE + TILE/1.5);
             });
 
-            // 3. Draw Tokens
-            Object.keys(positions).forEach(playerKey => {
+            // Start squares colors
+            ctx.fillStyle = P_CFG['Player 1'].color; ctx.fillRect(pathCoords[0].x*TILE, pathCoords[0].y*TILE, TILE, TILE);
+            ctx.fillStyle = P_CFG['Player 3'].color; ctx.fillRect(pathCoords[13].x*TILE, pathCoords[13].y*TILE, TILE, TILE);
+            ctx.fillStyle = P_CFG['Player 2'].color; ctx.fillRect(pathCoords[26].x*TILE, pathCoords[26].y*TILE, TILE, TILE);
+            ctx.fillStyle = P_CFG['Player 4'].color; ctx.fillRect(pathCoords[39].x*TILE, pathCoords[39].y*TILE, TILE, TILE);
+
+            // 3. Draw Home Paths
+            const drawHomeTrack = (pathObj, color) => {
+                ctx.fillStyle = color;
+                pathObj.forEach(p => { ctx.fillRect(p.x*TILE + 2, p.y*TILE + 2, TILE-4, TILE-4); });
+            };
+            drawHomeTrack(homePaths['Player 1'], P_CFG['Player 1'].color);
+            drawHomeTrack(homePaths['Player 2'], P_CFG['Player 2'].color);
+            drawHomeTrack(homePaths['Player 3'], P_CFG['Player 3'].color);
+            drawHomeTrack(homePaths['Player 4'], P_CFG['Player 4'].color);
+
+            // 4. Draw Center Home (Triangles)
+            ctx.beginPath(); ctx.moveTo(6*TILE, 6*TILE); ctx.lineTo(9*TILE, 6*TILE); ctx.lineTo(7.5*TILE, 7.5*TILE); ctx.fillStyle = P_CFG['Player 3'].color; ctx.fill(); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(9*TILE, 6*TILE); ctx.lineTo(9*TILE, 9*TILE); ctx.lineTo(7.5*TILE, 7.5*TILE); ctx.fillStyle = P_CFG['Player 2'].color; ctx.fill(); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(9*TILE, 9*TILE); ctx.lineTo(6*TILE, 9*TILE); ctx.lineTo(7.5*TILE, 7.5*TILE); ctx.fillStyle = P_CFG['Player 4'].color; ctx.fill(); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(6*TILE, 9*TILE); ctx.lineTo(6*TILE, 6*TILE); ctx.lineTo(7.5*TILE, 7.5*TILE); ctx.fillStyle = P_CFG['Player 1'].color; ctx.fill(); ctx.stroke();
+
+            // 5. Draw Tokens
+            let tileOccurrences = {}; // Track overlapping tokens
+
+            activePlayers.forEach(playerKey => {
                 positions[playerKey].forEach((posIndex, tokenIndex) => {
-                    let x, y;
-                    if (posIndex === -1) {
-                        x = basePositions[playerKey][tokenIndex].x;
-                        y = basePositions[playerKey][tokenIndex].y;
-                    } else {
-                        x = trackPath[posIndex].x;
-                        y = trackPath[posIndex].y;
-                    }
+                    if (posIndex === 56) return; // Hide if perfectly finished
+
+                    let coords = getVisualCoords(playerKey, posIndex, tokenIndex);
+                    let coordKey = `${coords.x},${coords.y}`;
+                    
+                    if (!tileOccurrences[coordKey]) tileOccurrences[coordKey] = 0;
+                    
+                    // Offset tokens if multiple are on the same square
+                    let offsetAmt = tileOccurrences[coordKey] * 6;
+                    tileOccurrences[coordKey]++;
 
                     ctx.beginPath();
-                    ctx.arc(x * TILE_SIZE + TILE_SIZE/2, y * TILE_SIZE + TILE_SIZE/2, 12, 0, Math.PI * 2);
-                    ctx.fillStyle = playerColors[playerKey];
+                    ctx.arc(coords.x*TILE + TILE/2 + offsetAmt, coords.y*TILE + TILE/2 - offsetAmt, 13, 0, Math.PI * 2);
+                    ctx.fillStyle = P_CFG[playerKey].color;
                     ctx.fill();
-                    ctx.lineWidth = 2;
-                    ctx.strokeStyle = "#333";
+                    ctx.lineWidth = 3;
+                    ctx.strokeStyle = P_CFG[playerKey].dark;
+                    ctx.stroke();
+                });
+            });
+        }
+    </script>
+</body>
+</html><!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Multiplayer Ludo Engine</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; text-align: center; background: #eef2f5; color: #2c3e50; margin: 0; padding: 20px; }
+        .header-panel { background: white; padding: 15px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); max-width: 650px; margin: 0 auto 20px auto; }
+        #game-board { border: 4px solid #34495e; background: white; box-shadow: 0px 10px 30px rgba(0,0,0,0.15); border-radius: 8px; cursor: pointer; }
+        .lobby-container { margin-top: 100px; background: white; padding: 40px; border-radius: 12px; display: inline-block; box-shadow: 0 10px 25px rgba(0,0,0,0.1); }
+        input, button { padding: 12px 20px; margin: 5px; font-size: 16px; border-radius: 6px; border: 1px solid #cbd5e1; outline: none; }
+        button { background-color: #3b82f6; color: white; border: none; cursor: pointer; font-weight: bold; transition: 0.2s; }
+        button:hover { background-color: #2563eb; }
+        button:disabled { background-color: #94a3b8; cursor: not-allowed; }
+        .room-code-box { font-size: 26px; font-weight: bold; color: #3b82f6; letter-spacing: 3px; }
+        .controls { display: flex; justify-content: center; align-items: center; gap: 20px; margin-top: 20px; }
+        .dice-box { font-size: 32px; font-weight: bold; background: white; border: 2px solid #34495e; border-radius: 10px; width: 50px; height: 50px; display: flex; align-items: center; justify-content: center; }
+    </style>
+</head>
+<body>
+
+    <div id="lobby" class="lobby-container">
+        <h1>🎲 Multiplayer Ludo</h1>
+        <button id="create-btn">Create a New Room</button>
+        <br><br><p style="color: #64748b; font-weight: bold;">— OR —</p>
+        <input type="text" id="room-input" placeholder="Enter 6-Digit Code" maxlength="6">
+        <button id="join-btn">Join Room</button>
+    </div>
+
+    <div id="game-container" style="display: none;">
+        <div class="header-panel">
+            <h2>Room: <span id="room-display" class="room-code-box"></span> | You are: <span id="my-player-id"></span></h2>
+            <h3 style="margin-bottom: 0;">Current Turn: <span id="turn-display">Waiting...</span></h3>
+            <p id="status-message" style="color: #ef4444; font-weight: bold; height: 20px; margin-top: 5px;"></p>
+        </div>
+        
+        <canvas id="game-board" width="600" height="600"></canvas>
+        
+        <div class="controls">
+            <button id="roll-dice-btn" disabled>🎲 Roll Dice</button>
+            <div id="dice-result" class="dice-box">-</div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
+        import { getDatabase, ref, set, get, onValue, update } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-database.js";
+
+        // ⚠️ PASTE YOUR FIREBASE CONFIG HERE
+        const firebaseConfig = {
+            apiKey: "AIzaSyDdU1M0GbC0plSoVQuGOSkoZ8D3dSH7cFM",
+            authDomain: "my-ludo-0a2b.firebaseapp.com",
+            databaseURL: "https://my-ludo-0a2b-default-rtdb.asia-southeast1.firebasedatabase.app",
+            projectId: "my-ludo-0a2b",
+            storageBucket: "my-ludo-0a2b.firebasestorage.app",
+            messagingSenderId: "1098466141875",
+            appId: "1:1098466141875:web:c13800e0344fd11f2f32c6",
+            measurementId: "G-X81N6PNK92"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getDatabase(app);
+
+        // --- GAME CONSTANTS & MATH ---
+        let currentRoom = null;
+        let myPlayerId = null;
+        let localGameState = null;
+        
+        const canvas = document.getElementById('game-board');
+        const ctx = canvas.getContext('2d');
+        const TILE = 40; 
+        
+        // Player Config (Positions and Colors)
+        const P_CFG = {
+            'Player 1': { color: '#ff4d4d', dark: '#cc0000', start: 0,  base: [{x:2,y:2},{x:3,y:2},{x:2,y:3},{x:3,y:3}] }, // Red (Top Left)
+            'Player 2': { color: '#ffdf00', dark: '#b39c00', start: 26, base: [{x:11,y:11},{x:12,y:11},{x:11,y:12},{x:12,y:12}] }, // Yellow (Bottom Right)
+            'Player 3': { color: '#33cc33', dark: '#1f7a1f', start: 13, base: [{x:11,y:2},{x:12,y:2},{x:11,y:3},{x:12,y:3}] }, // Green (Top Right)
+            'Player 4': { color: '#3385ff', dark: '#0047b3', start: 39, base: [{x:2,y:11},{x:3,y:11},{x:2,y:12},{x:3,y:12}] }  // Blue (Bottom Left)
+        };
+
+        // 52-Step Global Path Mapping (Starts top-left red moving right)
+        const pathCoords = [
+            {x:1,y:6},{x:2,y:6},{x:3,y:6},{x:4,y:6},{x:5,y:6}, {x:6,y:5},{x:6,y:4},{x:6,y:3},{x:6,y:2},{x:6,y:1},{x:6,y:0},{x:7,y:0},{x:8,y:0},
+            {x:8,y:1},{x:8,y:2},{x:8,y:3},{x:8,y:4},{x:8,y:5}, {x:9,y:6},{x:10,y:6},{x:11,y:6},{x:12,y:6},{x:13,y:6},{x:14,y:6},{x:14,y:7},{x:14,y:8},
+            {x:13,y:8},{x:12,y:8},{x:11,y:8},{x:10,y:8},{x:9,y:8}, {x:8,y:9},{x:8,y:10},{x:8,y:11},{x:8,y:12},{x:8,y:13},{x:8,y:14},{x:7,y:14},{x:6,y:14},
+            {x:6,y:13},{x:6,y:12},{x:6,y:11},{x:6,y:10},{x:6,y:9}, {x:5,y:8},{x:4,y:8},{x:3,y:8},{x:2,y:8},{x:1,y:8},{x:0,y:8},{x:0,y:7},{x:0,y:6}
+        ];
+
+        // Safe Squares on Global Path
+        const safeSquares = [0, 8, 13, 21, 26, 34, 39, 47];
+
+        // 5-Step Home Paths
+        const homePaths = {
+            'Player 1': [{x:1,y:7},{x:2,y:7},{x:3,y:7},{x:4,y:7},{x:5,y:7}],
+            'Player 2': [{x:13,y:7},{x:12,y:7},{x:11,y:7},{x:10,y:7},{x:9,y:7}],
+            'Player 3': [{x:7,y:1},{x:7,y:2},{x:7,y:3},{x:7,y:4},{x:7,y:5}],
+            'Player 4': [{x:7,y:13},{x:7,y:12},{x:7,y:11},{x:7,y:10},{x:7,y:9}]
+        };
+
+        // --- NETWORK SYNC ---
+        document.getElementById('create-btn').addEventListener('click', async () => {
+            const roomCode = Math.random().toString(36).substring(2, 8).toUpperCase();
+            myPlayerId = 'Player 1';
+            currentRoom = roomCode;
+
+            await set(ref(db, `rooms/${roomCode}`), {
+                players: { 'Player 1': true },
+                gameState: {
+                    turn: 'Player 1', diceRoll: null, hasRolled: false,
+                    positions: {
+                        'Player 1': [-1, -1, -1, -1], // -1 = Base. 0-50 = Track. 51-55 = Home Stretch. 56 = Home.
+                        'Player 2': [-1, -1, -1, -1],
+                        'Player 3': [-1, -1, -1, -1],
+                        'Player 4': [-1, -1, -1, -1]
+                    }
+                }
+            });
+            enterGame(roomCode);
+        });
+
+        document.getElementById('join-btn').addEventListener('click', async () => {
+            const roomCode = document.getElementById('room-input').value.toUpperCase();
+            if(!roomCode) return;
+            const snapshot = await get(ref(db, `rooms/${roomCode}`));
+            if (snapshot.exists()) {
+                const data = snapshot.val();
+                const players = Object.keys(data.players || {});
+                if (players.length >= 4) return alert("Room full!");
+                
+                myPlayerId = `Player ${players.length + 1}`;
+                currentRoom = roomCode;
+                await update(ref(db, `rooms/${roomCode}/players`), { [myPlayerId]: true });
+                enterGame(roomCode);
+            } else { alert("Room not found!"); }
+        });
+
+        function enterGame(roomCode) {
+            document.getElementById('lobby').style.display = 'none';
+            document.getElementById('game-container').style.display = 'block';
+            document.getElementById('room-display').innerText = roomCode;
+            document.getElementById('my-player-id').innerText = myPlayerId;
+            document.getElementById('my-player-id').style.color = P_CFG[myPlayerId].color;
+            listenToRoom(roomCode);
+        }
+
+        function listenToRoom(roomCode) {
+            onValue(ref(db, `rooms/${roomCode}`), (snapshot) => {
+                const data = snapshot.val();
+                if (!data) return;
+                localGameState = data;
+
+                document.getElementById('turn-display').innerText = data.gameState.turn;
+                document.getElementById('turn-display').style.color = P_CFG[data.gameState.turn].color;
+                document.getElementById('dice-result').innerText = data.gameState.diceRoll || '-';
+
+                const isMyTurn = (data.gameState.turn === myPlayerId);
+                document.getElementById('roll-dice-btn').disabled = !(isMyTurn && !data.gameState.hasRolled);
+
+                if(isMyTurn && data.gameState.hasRolled) {
+                    document.getElementById('status-message').innerText = "Select a token to move.";
+                    document.getElementById('status-message').style.color = "#10b981";
+                } else {
+                    document.getElementById('status-message').innerText = "";
+                }
+
+                drawBoard(data.gameState.positions, Object.keys(data.players));
+            });
+        }
+
+        // --- GAME LOGIC ---
+        document.getElementById('roll-dice-btn').addEventListener('click', async () => {
+            const roll = Math.floor(Math.random() * 6) + 1;
+            const myPositions = localGameState.gameState.positions[myPlayerId];
+            
+            // Check if user has ANY valid moves
+            let hasValidMove = false;
+            for (let i = 0; i < 4; i++) {
+                if (myPositions[i] === -1 && roll === 6) hasValidMove = true;
+                if (myPositions[i] !== -1 && myPositions[i] + roll <= 56) hasValidMove = true;
+            }
+
+            if (!hasValidMove) {
+                document.getElementById('status-message').innerText = `Rolled a ${roll}. No moves! Skipping...`;
+                document.getElementById('status-message').style.color = "#ef4444";
+                
+                const playersList = Object.keys(localGameState.players);
+                const nextPlayerIndex = (playersList.indexOf(myPlayerId) + 1) % playersList.length;
+                
+                setTimeout(async () => {
+                    await update(ref(db, `rooms/${currentRoom}/gameState`), {
+                        diceRoll: roll, hasRolled: false, turn: playersList[nextPlayerIndex]
+                    });
+                }, 1500);
+            } else {
+                await update(ref(db, `rooms/${currentRoom}/gameState`), { diceRoll: roll, hasRolled: true });
+            }
+        });
+
+        canvas.addEventListener('click', async (e) => {
+            if (!localGameState || localGameState.gameState.turn !== myPlayerId || !localGameState.gameState.hasRolled) return;
+
+            const rect = canvas.getBoundingClientRect();
+            const gridX = Math.floor((e.clientX - rect.left) / TILE);
+            const gridY = Math.floor((e.clientY - rect.top) / TILE);
+
+            let positionsObj = JSON.parse(JSON.stringify(localGameState.gameState.positions)); // Deep copy
+            const myPositions = positionsObj[myPlayerId];
+            const diceRoll = localGameState.gameState.diceRoll;
+            let tokenMoved = false;
+            let gotBonusTurn = (diceRoll === 6); // Rolling 6 = Bonus Turn
+
+            for (let i = 0; i < 4; i++) {
+                let pos = myPositions[i];
+                let coords = getVisualCoords(myPlayerId, pos);
+
+                if (gridX === coords.x && gridY === coords.y) {
+                    if (pos === -1 && diceRoll === 6) {
+                        myPositions[i] = 0; // Exit base
+                        tokenMoved = true;
+                    } else if (pos !== -1 && pos + diceRoll <= 56) {
+                        myPositions[i] += diceRoll; // Move forward
+                        tokenMoved = true;
+
+                        // Check Win
+                        if (myPositions[i] === 56) gotBonusTurn = true; 
+
+                        // Check Capture (If on main track)
+                        if (myPositions[i] < 51) {
+                            let myGlobalIdx = (P_CFG[myPlayerId].start + myPositions[i]) % 52;
+                            if (!safeSquares.includes(myGlobalIdx)) {
+                                Object.keys(positionsObj).forEach(oppId => {
+                                    if (oppId !== myPlayerId) {
+                                        positionsObj[oppId].forEach((oppPos, oppIdx) => {
+                                            if (oppPos > -1 && oppPos < 51) {
+                                                let oppGlobalIdx = (P_CFG[oppId].start + oppPos) % 52;
+                                                if (oppGlobalIdx === myGlobalIdx) {
+                                                    positionsObj[oppId][oppIdx] = -1; // KILL!
+                                                    gotBonusTurn = true;
+                                                }
+                                            }
+                                        });
+                                    }
+                                });
+                            }
+                        }
+                    }
+                    break; // Action complete
+                }
+            }
+
+            if (tokenMoved) {
+                const playersList = Object.keys(localGameState.players);
+                let nextTurn = myPlayerId;
+                if (!gotBonusTurn) {
+                    nextTurn = playersList[(playersList.indexOf(myPlayerId) + 1) % playersList.length];
+                }
+                
+                await update(ref(db, `rooms/${currentRoom}/gameState`), {
+                    positions: positionsObj, turn: nextTurn, hasRolled: false, diceRoll: null
+                });
+            }
+        });
+
+        // Helper to map relative progress (0-56) to physical X/Y grid coordinates
+        function getVisualCoords(player, relativePos, indexInBase = 0) {
+            if (relativePos === -1) return P_CFG[player].base[indexInBase];
+            if (relativePos < 51) {
+                let globalIdx = (P_CFG[player].start + relativePos) % 52;
+                return pathCoords[globalIdx];
+            }
+            if (relativePos >= 51 && relativePos <= 55) return homePaths[player][relativePos - 51];
+            return { x: 7, y: 7 }; // 56 = Home Center
+        }
+
+        // --- DRAWING LOGIC ---
+        function drawBoard(positions, activePlayers) {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // 1. Draw 4 Bases
+            const drawBase = (x, y, color) => {
+                ctx.fillStyle = color; ctx.fillRect(x*TILE, y*TILE, 6*TILE, 6*TILE);
+                ctx.fillStyle = "white"; ctx.fillRect((x+1)*TILE, (y+1)*TILE, 4*TILE, 4*TILE);
+            };
+            drawBase(0, 0, P_CFG['Player 1'].color); drawBase(9, 0, P_CFG['Player 3'].color);
+            drawBase(0, 9, P_CFG['Player 4'].color); drawBase(9, 9, P_CFG['Player 2'].color);
+
+            // 2. Draw Grid & Path Backgrounds
+            ctx.strokeStyle = "#cbd5e1";
+            for(let i=0; i<=15; i++) {
+                ctx.beginPath(); ctx.moveTo(i*TILE, 0); ctx.lineTo(i*TILE, 600); ctx.stroke();
+                ctx.beginPath(); ctx.moveTo(0, i*TILE); ctx.lineTo(600, i*TILE); ctx.stroke();
+            }
+
+            // Fill Safe Squares & Starts
+            safeSquares.forEach(idx => {
+                ctx.fillStyle = "#e2e8f0";
+                ctx.fillRect(pathCoords[idx].x*TILE, pathCoords[idx].y*TILE, TILE, TILE);
+                // Draw Star
+                ctx.fillStyle = "#94a3b8"; ctx.font = "20px Arial"; ctx.textAlign = "center";
+                ctx.fillText("★", pathCoords[idx].x*TILE + TILE/2, pathCoords[idx].y*TILE + TILE/1.5);
+            });
+
+            // Start squares colors
+            ctx.fillStyle = P_CFG['Player 1'].color; ctx.fillRect(pathCoords[0].x*TILE, pathCoords[0].y*TILE, TILE, TILE);
+            ctx.fillStyle = P_CFG['Player 3'].color; ctx.fillRect(pathCoords[13].x*TILE, pathCoords[13].y*TILE, TILE, TILE);
+            ctx.fillStyle = P_CFG['Player 2'].color; ctx.fillRect(pathCoords[26].x*TILE, pathCoords[26].y*TILE, TILE, TILE);
+            ctx.fillStyle = P_CFG['Player 4'].color; ctx.fillRect(pathCoords[39].x*TILE, pathCoords[39].y*TILE, TILE, TILE);
+
+            // 3. Draw Home Paths
+            const drawHomeTrack = (pathObj, color) => {
+                ctx.fillStyle = color;
+                pathObj.forEach(p => { ctx.fillRect(p.x*TILE + 2, p.y*TILE + 2, TILE-4, TILE-4); });
+            };
+            drawHomeTrack(homePaths['Player 1'], P_CFG['Player 1'].color);
+            drawHomeTrack(homePaths['Player 2'], P_CFG['Player 2'].color);
+            drawHomeTrack(homePaths['Player 3'], P_CFG['Player 3'].color);
+            drawHomeTrack(homePaths['Player 4'], P_CFG['Player 4'].color);
+
+            // 4. Draw Center Home (Triangles)
+            ctx.beginPath(); ctx.moveTo(6*TILE, 6*TILE); ctx.lineTo(9*TILE, 6*TILE); ctx.lineTo(7.5*TILE, 7.5*TILE); ctx.fillStyle = P_CFG['Player 3'].color; ctx.fill(); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(9*TILE, 6*TILE); ctx.lineTo(9*TILE, 9*TILE); ctx.lineTo(7.5*TILE, 7.5*TILE); ctx.fillStyle = P_CFG['Player 2'].color; ctx.fill(); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(9*TILE, 9*TILE); ctx.lineTo(6*TILE, 9*TILE); ctx.lineTo(7.5*TILE, 7.5*TILE); ctx.fillStyle = P_CFG['Player 4'].color; ctx.fill(); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(6*TILE, 9*TILE); ctx.lineTo(6*TILE, 6*TILE); ctx.lineTo(7.5*TILE, 7.5*TILE); ctx.fillStyle = P_CFG['Player 1'].color; ctx.fill(); ctx.stroke();
+
+            // 5. Draw Tokens
+            let tileOccurrences = {}; // Track overlapping tokens
+
+            activePlayers.forEach(playerKey => {
+                positions[playerKey].forEach((posIndex, tokenIndex) => {
+                    if (posIndex === 56) return; // Hide if perfectly finished
+
+                    let coords = getVisualCoords(playerKey, posIndex, tokenIndex);
+                    let coordKey = `${coords.x},${coords.y}`;
+                    
+                    if (!tileOccurrences[coordKey]) tileOccurrences[coordKey] = 0;
+                    
+                    // Offset tokens if multiple are on the same square
+                    let offsetAmt = tileOccurrences[coordKey] * 6;
+                    tileOccurrences[coordKey]++;
+
+                    ctx.beginPath();
+                    ctx.arc(coords.x*TILE + TILE/2 + offsetAmt, coords.y*TILE + TILE/2 - offsetAmt, 13, 0, Math.PI * 2);
+                    ctx.fillStyle = P_CFG[playerKey].color;
+                    ctx.fill();
+                    ctx.lineWidth = 3;
+                    ctx.strokeStyle = P_CFG[playerKey].dark;
                     ctx.stroke();
                 });
             });
