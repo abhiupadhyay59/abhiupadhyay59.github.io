@@ -104,10 +104,12 @@
             const botCount = parseInt(document.querySelector('input[name="bot-count"]:checked').value);
             
             // Determine active players based on bot count
-            activePlayers = ['Player 1']; // Human is always Player 1
-            if (botCount === 1) activePlayers.push('Player 3'); // 1 Bot: Put them opposite (Green)
-            if (botCount === 2) activePlayers.push('Player 2', 'Player 3'); // 2 Bots: Yellow & Green
-            if (botCount === 3) activePlayers.push('Player 2', 'Player 3', 'Player 4'); // 3 Bots: All active
+            activePlayers = ['Player 1']; // Human is always Player 1 (Red)
+            
+            // 🛠️ THE FIX: Assigned Player 2 (Yellow) as the 1v1 opponent
+            if (botCount === 1) activePlayers.push('Player 2'); 
+            if (botCount === 2) activePlayers.push('Player 2', 'Player 3'); 
+            if (botCount === 3) activePlayers.push('Player 2', 'Player 3', 'Player 4'); 
 
             // Reset the game logic
             gameState = {
