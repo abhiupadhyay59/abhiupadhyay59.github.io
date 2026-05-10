@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Multiplayer Ludo Engine</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; text-align: center; background: #f4f4f9; color: #333; margin: 0; padding: 10px; }
+        #game-board { margin: 20px auto; border: 4px solid #333; background: white; box-shadow: 0px 4px 15px rgba(0,0,0,0.2); border-radius: 10px; cursor: pointer; }
+        .lobby-container { margin-top: 100px; }
+        input, button { padding: 12px; margin: 5px; font-size: 16px; border-radius: 5px; border: 1px solid #ccc; }
+        button { background-color: #28a745; color: white; border: none; cursor: pointer; font-weight: bold; }
+        button:hover { background-color: #218838; }
+        button:disabled { background-color: #6c757d; cursor: not-allowed; }
+        .room-code-box { font-size: 24px; font-weight: bold; color: #007bff; letter-spacing: 2px; }
+        .controls { display: flex; justify-content: center; align-items: center; gap: 20px; }
+    </style>
+</head>
+<body>
+
+    <!-- LOBBY SCREEN -->
+    <div id="lobby" class="lobby-container">
+        <h1>🎲 Multiplayer Ludo</h1>
+        <button id="create-btn">Create a New Room</button>
+        <br><br><p>— OR —</p>
+        <input type="text" id="room-input" placeholder="Enter 6-Digit Code" maxlength="6">
+        <button id="join-btn">Join Room</button>
+    </div>
+
+    <!-- GAME SCREEN -->
+    <div id="game-container" style="display: none;">
+        <h2>Room: <span id="room-display" class="room-code-box"></span> | You are: <span id="my-player-id"></span></h2>
+        <h3 style="color: #d9534f;">Turn: <span id="turn-display">Waiting...</span></h3>
+        
+        <canvas id="game-board" width="600" height="600"></canvas>
+        
+        <div class="controls">
+            <button id="roll-dice-btn" disabled>Roll Dice</button>
+            <h2>Dice: <span id="dice-result">-</span></h2>
+        </div>
+        <p id="status-message" style="color: red; font-weight: bold;"></p>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
+        import { getDatabase, ref, set, get, onValue, update } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-database.js";
+
+        // ⚠️ PASTE YOUR FIREBASE CONFIG HERE
+        const firebaseConfig = {
+            apiKey: "AIzaSyDdU1M0GbC0plSoVQuGOSkoZ8D3dSH7cFM",
+            authDomain: "my-ludo-0a2b.firebaseapp.com",
+            databaseURL: "https://my-ludo-0a2b-default-rtdb.asia-southeast1.firebasedatabase.app",
+            projectId: "my-ludo-0a2b",
+            storageBucket: "my-ludo-0a2b.firebasestorage.app",
+            messagingSenderId: "1098466141875",
+            appId: "1:1098466141875:web:c13800e0344fd11f2f32c6",
+            measurementId: "G-X81N6PNK92"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getDatabase(app);
+
+        // Game State & Constants
+        let currentRoom = null;
+        let myPlayerId = null;
+        let localGameState = null;
+        
+        const canvas = document.getElementById('game-board');
+        const ctx = canvas.getContext('2d');
+        const TILE_SIZE = 40; // 15x15 grid = 600px
+        
+        // Map Player IDs to Colors
+        const playerColors = { 'Player 1': 'red', 'Player 2': 'green', 'Player 3': 'yellow', 'Player 4': 'blue' };
+
+        // Simplified Track Path (Outer ring of the board for logic demonstration)
+        const trackPath = [];
+        for(let i=0; i<15; i++) trackPath.push({x: i, y: 0}); // Top edge
+        for(let i=1; i<15; i++) trackPath.push({x: 14, y: i}); // Right edge
+        for(let i=13; i>=0; i--) trackPath.push({x: i, y: 14}); // Bottom edge
+        for(let i=13; i>0; i--) trackPath.push({x: 0, y: i}); // Left edge
+
+        // Base positions for tokens when they are at "-1" (Not on board yet)
+        const basePositions = {
+            'Player 1': [{x: 2, y: 2}, {x: 3, y: 2}, {x: 2, y: 3}, {x: 3, y: 3}],
+            'Player 2': [{x: 11, y: 2}, {x: 12, y: 2}, {x: 11, y: 3}, {x: 12, y: 3}],
+            'Player 3': [{x: 11, y: 11}, {x: 12, y: 11}, {x: 11, y: 12}, {x: 12, y: 12}],
+            'Player 4': [{x: 2, y: 11}, {x: 3, y: 11}, {x: 2, y: 12}, {x: 3, y: 12}],
+        };
+
+        // --- ROOM LOGIC ---
+        document.getElementById('create-btn').addEventListener('click', async () => {
+            const roomCode = Math.random().toString(36).substring(2, 8).toUpperCase();
+            myPlayerId = 'Player 1';
+            currentRoom = roomCode;
+
+            await set(ref(db, `rooms/${roomCode}`), {
+                players: { 'Player 1': true },
+                gameState: {
+                    turn: 'Player 1',
+                    diceRoll: null,
+                    hasRolled: false,
+                    positions: {
+                        'Player 1': [-1, -1, -1, -1], // -1 means in base
+                        'Player 2': [-1, -1, -1, -1],
+                        'Player 3': [-1, -1, -1, -1],
+                        'Player 4': [-1, -1, -1, -1]
+                    }
+                }
+            });
+            enterGame(roomCode);
+        });
+
+        document.getElementById('join-btn').addEventListener('click', async () => {
+            const roomCode = document.getElementById('room-input').value.toUpperCase();
+            if(!roomCode) return;
+            const snapshot = await get(ref(db, `rooms/${roomCode}`));
+            if (snapshot.exists()) {
+                const data = snapshot.val();
+                const players = Object.keys(data.players || {});
+                if (players.length >= 4) return alert("Room full!");
+                
+                myPlayerId = `Player ${players.length + 1}`;
+                currentRoom = roomCode;
+                await update(ref(db, `rooms/${roomCode}/players`), { [myPlayerId]: true });
+                enterGame(roomCode);
+            } else {
+                alert("Room not found!");
+            }
+        });
+
+        function enterGame(roomCode) {
+            document.getElementById('lobby').style.display = 'none';
+            document.getElementById('game-container').style.display = 'block';
+            document.getElementById('room-display').innerText = roomCode;
+            document.getElementById('my-player-id').innerText = myPlayerId;
+            document.getElementById('my-player-id').style.color = playerColors[myPlayerId];
+            listenToRoom(roomCode);
+        }
+
+        // --- NETWORK SYNC ---
+        function listenToRoom(roomCode) {
+            onValue(ref(db, `rooms/${roomCode}`), (snapshot) => {
+                const data = snapshot.val();
+                if (!data) return;
+                localGameState = data;
+
+                document.getElementById('turn-display').innerText = data.gameState.turn;
+                document.getElementById('turn-display').style.color = playerColors[data.gameState.turn];
+                document.getElementById('dice-result').innerText = data.gameState.diceRoll || '-';
+
+                // Roll logic: Can only roll if it's your turn AND you haven't rolled yet
+                const isMyTurn = (data.gameState.turn === myPlayerId);
+                document.getElementById('roll-dice-btn').disabled = !(isMyTurn && !data.gameState.hasRolled);
+
+                if(isMyTurn && data.gameState.hasRolled) {
+                    document.getElementById('status-message').innerText = "Click one of your tokens to move it.";
+                } else {
+                    document.getElementById('status-message').innerText = "";
+                }
+
+                drawBoard(data.gameState.positions);
+            });
+        }
+
+        // --- DICE LOGIC ---
+        document.getElementById('roll-dice-btn').addEventListener('click', async () => {
+            const roll = Math.floor(Math.random() * 6) + 1;
+            await update(ref(db, `rooms/${currentRoom}/gameState`), {
+                diceRoll: roll,
+                hasRolled: true
+            });
+        });
+
+        // --- TOKEN MOVEMENT (CANVAS CLICK) ---
+        canvas.addEventListener('click', async (e) => {
+            if (!localGameState || localGameState.gameState.turn !== myPlayerId || !localGameState.gameState.hasRolled) return;
+
+            const rect = canvas.getBoundingClientRect();
+            const clickX = e.clientX - rect.left;
+            const clickY = e.clientY - rect.top;
+            const gridX = Math.floor(clickX / TILE_SIZE);
+            const gridY = Math.floor(clickY / TILE_SIZE);
+
+            const myPositions = localGameState.gameState.positions[myPlayerId];
+            const diceRoll = localGameState.gameState.diceRoll;
+            let tokenMoved = false;
+
+            for (let i = 0; i < 4; i++) {
+                let tokenPos = myPositions[i];
+                let visualX, visualY;
+
+                // Determine where the token currently is on the screen
+                if (tokenPos === -1) {
+                    visualX = basePositions[myPlayerId][i].x;
+                    visualY = basePositions[myPlayerId][i].y;
+                } else {
+                    visualX = trackPath[tokenPos].x;
+                    visualY = trackPath[tokenPos].y;
+                }
+
+                // Check if the user clicked on this specific token
+                if (gridX === visualX && gridY === visualY) {
+                    if (tokenPos === -1 && diceRoll === 6) {
+                        myPositions[i] = 0; // Move out of base
+                        tokenMoved = true;
+                    } else if (tokenPos !== -1) {
+                        myPositions[i] = (tokenPos + diceRoll) % trackPath.length; // Move along track
+                        tokenMoved = true;
+                    }
+                    break;
+                }
+            }
+
+            if (tokenMoved) {
+                // Pass turn to next player
+                const playersList = Object.keys(localGameState.players);
+                const nextPlayerIndex = (playersList.indexOf(myPlayerId) + 1) % playersList.length;
+                
+                await update(ref(db, `rooms/${currentRoom}/gameState`), {
+                    positions: { ...localGameState.gameState.positions, [myPlayerId]: myPositions },
+                    turn: playersList[nextPlayerIndex],
+                    hasRolled: false,
+                    diceRoll: null
+                });
+            } else {
+                alert("Invalid move! You need a 6 to leave the base, or click a valid token.");
+            }
+        });
+
+        // --- DRAWING LOGIC ---
+        function drawBoard(positions) {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // 1. Draw Bases
+            ctx.fillStyle = "#ffcccc"; ctx.fillRect(0, 0, 6 * TILE_SIZE, 6 * TILE_SIZE); // Red
+            ctx.fillStyle = "#ccffcc"; ctx.fillRect(9 * TILE_SIZE, 0, 6 * TILE_SIZE, 6 * TILE_SIZE); // Green
+            ctx.fillStyle = "#ffffcc"; ctx.fillRect(9 * TILE_SIZE, 9 * TILE_SIZE, 6 * TILE_SIZE, 6 * TILE_SIZE); // Yellow
+            ctx.fillStyle = "#ccccff"; ctx.fillRect(0, 9 * TILE_SIZE, 6 * TILE_SIZE, 6 * TILE_SIZE); // Blue
+
+            // 2. Draw Track Grid
+            ctx.strokeStyle = "#ddd";
+            for(let i = 0; i <= 15; i++) {
+                ctx.beginPath(); ctx.moveTo(i * TILE_SIZE, 0); ctx.lineTo(i * TILE_SIZE, 600); ctx.stroke();
+                ctx.beginPath(); ctx.moveTo(0, i * TILE_SIZE); ctx.lineTo(600, i * TILE_SIZE); ctx.stroke();
+            }
+
+            // Highlight the playable track path
+            ctx.fillStyle = "rgba(0, 0, 0, 0.05)";
+            trackPath.forEach(tile => {
+                ctx.fillRect(tile.x * TILE_SIZE, tile.y * TILE_SIZE, TILE_SIZE, TILE_SIZE);
+            });
+
+            // 3. Draw Tokens
+            Object.keys(positions).forEach(playerKey => {
+                positions[playerKey].forEach((posIndex, tokenIndex) => {
+                    let x, y;
+                    if (posIndex === -1) {
+                        x = basePositions[playerKey][tokenIndex].x;
+                        y = basePositions[playerKey][tokenIndex].y;
+                    } else {
+                        x = trackPath[posIndex].x;
+                        y = trackPath[posIndex].y;
+                    }
+
+                    ctx.beginPath();
+                    ctx.arc(x * TILE_SIZE + TILE_SIZE/2, y * TILE_SIZE + TILE_SIZE/2, 12, 0, Math.PI * 2);
+                    ctx.fillStyle = playerColors[playerKey];
+                    ctx.fill();
+                    ctx.lineWidth = 2;
+                    ctx.strokeStyle = "#333";
+                    ctx.stroke();
+                });
+            });
+        }
+    </script>
+</body>
+</html>
