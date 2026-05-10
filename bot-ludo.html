@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ludo vs Bots</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; text-align: center; background: #eef2f5; color: #2c3e50; margin: 0; padding: 20px; }
+        .header-panel { background: white; padding: 15px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); max-width: 650px; margin: 0 auto 20px auto; }
+        #game-board { border: 4px solid #34495e; background: white; box-shadow: 0px 10px 30px rgba(0,0,0,0.15); border-radius: 8px; cursor: pointer; }
+        button { padding: 12px 20px; margin: 5px; font-size: 16px; border-radius: 6px; border: none; cursor: pointer; font-weight: bold; transition: 0.2s; }
+        #roll-dice-btn { background-color: #3b82f6; color: white; }
+        #roll-dice-btn:hover:not(:disabled) { background-color: #2563eb; }
+        #roll-dice-btn:disabled { background-color: #94a3b8; cursor: not-allowed; }
+        .controls { display: flex; justify-content: center; align-items: center; gap: 20px; margin-top: 20px; }
+        .dice-box { font-size: 32px; font-weight: bold; background: white; border: 2px solid #34495e; border-radius: 10px; width: 50px; height: 50px; display: flex; align-items: center; justify-content: center; }
+    </style>
+</head>
+<body>
+
+    <div class="header-panel">
+        <h2>🎲 Ludo vs Bots</h2>
+        <h3 style="margin-bottom: 0;">Current Turn: <span id="turn-display">Player 1 (You)</span></h3>
+        <p id="status-message" style="color: #10b981; font-weight: bold; height: 20px; margin-top: 5px;">Your Turn! Roll the dice.</p>
+    </div>
+    
+    <canvas id="game-board" width="600" height="600"></canvas>
+    
+    <div class="controls">
+        <button id="roll-dice-btn">🎲 Roll Dice (Player 1)</button>
+        <div id="dice-result" class="dice-box">-</div>
+    </div>
+
+    <script>
+        // --- GAME CONSTANTS & MATH ---
+        const canvas = document.getElementById('game-board');
+        const ctx = canvas.getContext('2d');
+        const TILE = 40; 
+        
+        const P_CFG = {
+            'Player 1': { color: '#ff4d4d', dark: '#cc0000', start: 0,  base: [{x:2,y:2},{x:3,y:2},{x:2,y:3},{x:3,y:3}], isBot: false }, // RED (Human)
+            'Player 2': { color: '#ffdf00', dark: '#b39c00', start: 26, base: [{x:11,y:11},{x:12,y:11},{x:11,y:12},{x:12,y:12}], isBot: true }, // YELLOW
+            'Player 3': { color: '#33cc33', dark: '#1f7a1f', start: 13, base: [{x:11,y:2},{x:12,y:2},{x:11,y:3},{x:12,y:3}], isBot: true }, // GREEN
+            'Player 4': { color: '#3385ff', dark: '#0047b3', start: 39, base: [{x:2,y:11},{x:3,y:11},{x:2,y:12},{x:3,y:12}], isBot: true }  // BLUE
+        };
+
+        const pathCoords = [
+            {x:1,y:6},{x:2,y:6},{x:3,y:6},{x:4,y:6},{x:5,y:6}, {x:6,y:5},{x:6,y:4},{x:6,y:3},{x:6,y:2},{x:6,y:1},{x:6,y:0},{x:7,y:0},{x:8,y:0},
+            {x:8,y:1},{x:8,y:2},{x:8,y:3},{x:8,y:4},{x:8,y:5}, {x:9,y:6},{x:10,y:6},{x:11,y:6},{x:12,y:6},{x:13,y:6},{x:14,y:6},{x:14,y:7},{x:14,y:8},
+            {x:13,y:8},{x:12,y:8},{x:11,y:8},{x:10,y:8},{x:9,y:8}, {x:8,y:9},{x:8,y:10},{x:8,y:11},{x:8,y:12},{x:8,y:13},{x:8,y:14},{x:7,y:14},{x:6,y:14},
+            {x:6,y:13},{x:6,y:12},{x:6,y:11},{x:6,y:10},{x:6,y:9}, {x:5,y:8},{x:4,y:8},{x:3,y:8},{x:2,y:8},{x:1,y:8},{x:0,y:8},{x:0,y:7},{x:0,y:6}
+        ];
+
+        const safeSquares = [0, 8, 13, 21, 26, 34, 39, 47];
+        const homePaths = {
+            'Player 1': [{x:1,y:7},{x:2,y:7},{x:3,y:7},{x:4,y:7},{x:5,y:7}],
+            'Player 2': [{x:13,y:7},{x:12,y:7},{x:11,y:7},{x:10,y:7},{x:9,y:7}],
+            'Player 3': [{x:7,y:1},{x:7,y:2},{x:7,y:3},{x:7,y:4},{x:7,y:5}],
+            'Player 4': [{x:7,y:13},{x:7,y:12},{x:7,y:11},{x:7,y:10},{x:7,y:9}]
+        };
+
+        // --- LOCAL GAME STATE ---
+        let gameState = {
+            turn: 'Player 1',
+            diceRoll: null,
+            hasRolled: false,
+            consecutiveSixes: 0,
+            positions: {
+                'Player 1': [-1, -1, -1, -1], 'Player 2': [-1, -1, -1, -1],
+                'Player 3': [-1, -1, -1, -1], 'Player 4': [-1, -1, -1, -1]
+            }
+        };
+
+        const playersList = ['Player 1', 'Player 2', 'Player 3', 'Player 4'];
+        
+        // UI Elements
+        const turnDisplay = document.getElementById('turn-display');
+        const statusMsg = document.getElementById('status-message');
+        const rollBtn = document.getElementById('roll-dice-btn');
+        const diceBox = document.getElementById('dice-result');
+
+        // Initialize Game
+        drawBoard();
+        updateUI();
+
+        // --- CORE GAME LOOP LOGIC ---
+        function passTurn(bonusTurn = false) {
+            if (!bonusTurn) {
+                let currentIndex = playersList.indexOf(gameState.turn);
+                gameState.turn = playersList[(currentIndex + 1) % 4];
+            }
+            
+            gameState.diceRoll = null;
+            gameState.hasRolled = false;
+            
+            // If the next turn is a bot, disable controls and trigger AI
+            if (P_CFG[gameState.turn].isBot) {
+                updateUI();
+                setTimeout(playBotTurn, 1000); // 1 second delay to simulate "thinking"
+            } else {
+                updateUI(); // Unlock human controls
+            }
+        }
+
+        function updateUI() {
+            turnDisplay.innerText = gameState.turn + (P_CFG[gameState.turn].isBot ? " (Bot)" : " (You)");
+            turnDisplay.style.color = P_CFG[gameState.turn].color;
+            diceBox.innerText = gameState.diceRoll || '-';
+
+            const isHumanTurn = !P_CFG[gameState.turn].isBot;
+            
+            if (!isHumanTurn) {
+                rollBtn.disabled = true;
+                statusMsg.innerText = `${gameState.turn} is thinking...`;
+                statusMsg.style.color = "#f59e0b";
+            } else {
+                rollBtn.disabled = gameState.hasRolled;
+                if (!gameState.hasRolled) {
+                    statusMsg.innerText = "Your Turn! Roll the dice.";
+                    statusMsg.style.color = "#10b981";
+                } else {
+                    statusMsg.innerText = "Select a token to move.";
+                }
+            }
+            drawBoard();
+        }
+
+        function getValidMoves(player, roll) {
+            let moves = [];
+            for (let i = 0; i < 4; i++) {
+                let pos = gameState.positions[player][i];
+                if (pos === -1 && roll === 6) moves.push(i);
+                if (pos !== -1 && pos + roll <= 56) moves.push(i);
+            }
+            return moves;
+        }
+
+        // Handles mathematically moving a piece and checking captures
+        function executeMove(player, tokenIndex, roll) {
+            let pos = gameState.positions[player][tokenIndex];
+            let gotBonusTurn = (roll === 6);
+
+            if (pos === -1 && roll === 6) {
+                gameState.positions[player][tokenIndex] = 0; 
+            } else {
+                gameState.positions[player][tokenIndex] += roll; 
+                if (gameState.positions[player][tokenIndex] === 56) gotBonusTurn = true; 
+
+                // Capture Logic
+                if (gameState.positions[player][tokenIndex] < 51) {
+                    let myGlobalIdx = (P_CFG[player].start + gameState.positions[player][tokenIndex]) % 52;
+                    if (!safeSquares.includes(myGlobalIdx)) {
+                        Object.keys(gameState.positions).forEach(oppId => {
+                            if (oppId !== player) {
+                                gameState.positions[oppId].forEach((oppPos, oppIdx) => {
+                                    if (oppPos > -1 && oppPos < 51) {
+                                        let oppGlobalIdx = (P_CFG[oppId].start + oppPos) % 52;
+                                        if (oppGlobalIdx === myGlobalIdx) {
+                                            gameState.positions[oppId][oppIdx] = -1; // Kill
+                                            gotBonusTurn = true;
+                                        }
+                                    }
+                                });
+                            }
+                        });
+                    }
+                }
+            }
+
+            if (!gotBonusTurn) gameState.consecutiveSixes = 0;
+            passTurn(gotBonusTurn);
+        }
+
+
+        // --- THE BOT AI ---
+        function playBotTurn() {
+            const roll = Math.floor(Math.random() * 6) + 1;
+            gameState.diceRoll = roll;
+            updateUI();
+
+            // Consecutive Six check
+            if (roll === 6) gameState.consecutiveSixes++;
+            else gameState.consecutiveSixes = 0;
+
+            if (gameState.consecutiveSixes === 3) {
+                statusMsg.innerText = `${gameState.turn} rolled three 6s! Turn forfeited.`;
+                statusMsg.style.color = "#ef4444";
+                gameState.consecutiveSixes = 0;
+                setTimeout(() => passTurn(false), 1500);
+                return;
+            }
+
+            statusMsg.innerText = `${gameState.turn} rolled a ${roll}.`;
+
+            let validMoves = getValidMoves(gameState.turn, roll);
+
+            if (validMoves.length === 0) {
+                setTimeout(() => {
+                    statusMsg.innerText = `No moves for ${gameState.turn}. Skipping...`;
+                    setTimeout(() => passTurn(false), 1000);
+                }, 1000);
+                return;
+            }
+
+            // AI LOGIC: Pick the best move
+            // 1. Prioritize getting out of base if roll is 6
+            // 2. Otherwise pick a random valid token
+            let chosenToken = validMoves[0]; 
+            for (let idx of validMoves) {
+                if (gameState.positions[gameState.turn][idx] === -1) {
+                    chosenToken = idx; // Found a token in base, use it!
+                    break;
+                }
+            }
+
+            // Wait 1 second so human can see the dice roll, then move
+            setTimeout(() => {
+                executeMove(gameState.turn, chosenToken, roll);
+            }, 1000);
+        }
+
+
+        // --- HUMAN CONTROLS ---
+        rollBtn.addEventListener('click', () => {
+            if (P_CFG[gameState.turn].isBot || gameState.hasRolled) return;
+
+            const roll = Math.floor(Math.random() * 6) + 1;
+            gameState.diceRoll = roll;
+            gameState.hasRolled = true;
+
+            if (roll === 6) gameState.consecutiveSixes++;
+            else gameState.consecutiveSixes = 0;
+
+            if (gameState.consecutiveSixes === 3) {
+                statusMsg.innerText = "Rolled three 6s! Turn forfeited.";
+                statusMsg.style.color = "#ef4444";
+                gameState.consecutiveSixes = 0;
+                updateUI();
+                setTimeout(() => passTurn(false), 1500);
+                return;
+            }
+
+            let validMoves = getValidMoves('Player 1', roll);
+
+            if (validMoves.length === 0) {
+                statusMsg.innerText = `Rolled a ${roll}. No moves! Skipping...`;
+                statusMsg.style.color = "#ef4444";
+                updateUI();
+                setTimeout(() => passTurn(false), 1500);
+            } else {
+                updateUI();
+            }
+        });
+
+        canvas.addEventListener('click', (e) => {
+            if (P_CFG[gameState.turn].isBot || !gameState.hasRolled) return;
+
+            const rect = canvas.getBoundingClientRect();
+            const gridX = Math.floor((e.clientX - rect.left) / TILE);
+            const gridY = Math.floor((e.clientY - rect.top) / TILE);
+
+            let myPositions = gameState.positions['Player 1'];
+            let validMoves = getValidMoves('Player 1', gameState.diceRoll);
+
+            for (let i = 0; i < 4; i++) {
+                if (!validMoves.includes(i)) continue; // Skip tokens that can't be legally moved
+
+                let coords = getVisualCoords('Player 1', myPositions[i], i);
+                if (gridX === coords.x && gridY === coords.y) {
+                    executeMove('Player 1', i, gameState.diceRoll);
+                    break;
+                }
+            }
+        });
+
+        // --- DRAWING LOGIC (Same as before) ---
+        function getVisualCoords(player, relativePos, indexInBase = 0) {
+            if (relativePos === -1) return P_CFG[player].base[indexInBase];
+            if (relativePos < 51) {
+                let globalIdx = (P_CFG[player].start + relativePos) % 52;
+                return pathCoords[globalIdx];
+            }
+            if (relativePos >= 51 && relativePos <= 55) return homePaths[player][relativePos - 51];
+            return { x: 7, y: 7 }; 
+        }
+
+        function drawBoard() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            const drawBase = (x, y, color) => {
+                ctx.fillStyle = color; ctx.fillRect(x*TILE, y*TILE, 6*TILE, 6*TILE);
+                ctx.fillStyle = "white"; ctx.fillRect((x+1)*TILE, (y+1)*TILE, 4*TILE, 4*TILE);
+            };
+            drawBase(0, 0, P_CFG['Player 1'].color); drawBase(9, 0, P_CFG['Player 3'].color);
+            drawBase(0, 9, P_CFG['Player 4'].color); drawBase(9, 9, P_CFG['Player 2'].color);
+
+            ctx.strokeStyle = "#cbd5e1";
+            for(let i=0; i<=15; i++) {
+                ctx.beginPath(); ctx.moveTo(i*TILE, 0); ctx.lineTo(i*TILE, 600); ctx.stroke();
+                ctx.beginPath(); ctx.moveTo(0, i*TILE); ctx.lineTo(600, i*TILE); ctx.stroke();
+            }
+
+            safeSquares.forEach(idx => {
+                ctx.fillStyle = "#e2e8f0"; ctx.fillRect(pathCoords[idx].x*TILE, pathCoords[idx].y*TILE, TILE, TILE);
+                ctx.fillStyle = "#94a3b8"; ctx.font = "20px Arial"; ctx.textAlign = "center";
+                ctx.fillText("★", pathCoords[idx].x*TILE + TILE/2, pathCoords[idx].y*TILE + TILE/1.5);
+            });
+
+            ctx.fillStyle = P_CFG['Player 1'].color; ctx.fillRect(pathCoords[0].x*TILE, pathCoords[0].y*TILE, TILE, TILE);
+            ctx.fillStyle = P_CFG['Player 3'].color; ctx.fillRect(pathCoords[13].x*TILE, pathCoords[13].y*TILE, TILE, TILE);
+            ctx.fillStyle = P_CFG['Player 2'].color; ctx.fillRect(pathCoords[26].x*TILE, pathCoords[26].y*TILE, TILE, TILE);
+            ctx.fillStyle = P_CFG['Player 4'].color; ctx.fillRect(pathCoords[39].x*TILE, pathCoords[39].y*TILE, TILE, TILE);
+
+            const drawHomeTrack = (pathObj, color) => {
+                ctx.fillStyle = color; pathObj.forEach(p => { ctx.fillRect(p.x*TILE + 2, p.y*TILE + 2, TILE-4, TILE-4); });
+            };
+            drawHomeTrack(homePaths['Player 1'], P_CFG['Player 1'].color);
+            drawHomeTrack(homePaths['Player 2'], P_CFG['Player 2'].color);
+            drawHomeTrack(homePaths['Player 3'], P_CFG['Player 3'].color);
+            drawHomeTrack(homePaths['Player 4'], P_CFG['Player 4'].color);
+
+            ctx.beginPath(); ctx.moveTo(6*TILE, 6*TILE); ctx.lineTo(9*TILE, 6*TILE); ctx.lineTo(7.5*TILE, 7.5*TILE); ctx.fillStyle = P_CFG['Player 3'].color; ctx.fill(); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(9*TILE, 6*TILE); ctx.lineTo(9*TILE, 9*TILE); ctx.lineTo(7.5*TILE, 7.5*TILE); ctx.fillStyle = P_CFG['Player 2'].color; ctx.fill(); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(9*TILE, 9*TILE); ctx.lineTo(6*TILE, 9*TILE); ctx.lineTo(7.5*TILE, 7.5*TILE); ctx.fillStyle = P_CFG['Player 4'].color; ctx.fill(); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(6*TILE, 9*TILE); ctx.lineTo(6*TILE, 6*TILE); ctx.lineTo(7.5*TILE, 7.5*TILE); ctx.fillStyle = P_CFG['Player 1'].color; ctx.fill(); ctx.stroke();
+
+            let tileOccurrences = {}; 
+
+            playersList.forEach(playerKey => {
+                gameState.positions[playerKey].forEach((posIndex, tokenIndex) => {
+                    if (posIndex === 56) return; 
+
+                    let coords = getVisualCoords(playerKey, posIndex, tokenIndex);
+                    let coordKey = `${coords.x},${coords.y}`;
+                    if (!tileOccurrences[coordKey]) tileOccurrences[coordKey] = 0;
+                    
+                    let offsetAmt = tileOccurrences[coordKey] * 6;
+                    tileOccurrences[coordKey]++;
+
+                    ctx.beginPath();
+                    ctx.arc(coords.x*TILE + TILE/2 + offsetAmt, coords.y*TILE + TILE/2 - offsetAmt, 13, 0, Math.PI * 2);
+                    ctx.fillStyle = P_CFG[playerKey].color; ctx.fill();
+                    ctx.lineWidth = 3; ctx.strokeStyle = P_CFG[playerKey].dark; ctx.stroke();
+                });
+            });
+        }
+    </script>
+</body>
+</html>
