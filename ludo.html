@@ -621,7 +621,7 @@
 
             for (let i = 0; i < 4; i++) {
                 let pos = myPositions[i];
-                let coords = getVisualCoords(myPlayerId, pos);
+                let coords = getVisualCoords(myPlayerId, pos, i);
 
                 if (gridX === coords.x && gridY === coords.y) {
                     if (pos === -1 && diceRoll === 6) {
